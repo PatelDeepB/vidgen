@@ -66,7 +66,8 @@ export function parseAndValidateJson<T>(
     }
   }
 
-  const result = schema.safeParse(parsedValue);
+  const cleanedValue = stripNullProperties(parsedValue);
+  const result = schema.safeParse(cleanedValue);
   if (!result.success) {
     const issueText = result.error.issues
       .map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`)
@@ -77,4 +78,21 @@ export function parseAndValidateJson<T>(
   }
 
   return result.data;
+}
+
+/** Recursively omit null object properties so LLMs emitting null for optional fields pass Zod. */
+function stripNullProperties(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripNullProperties(item));
+  }
+  if (typeof value === "object" && value !== null) {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      if (entry !== null && entry !== undefined) {
+        out[key] = stripNullProperties(entry);
+      }
+    }
+    return out;
+  }
+  return value;
 }

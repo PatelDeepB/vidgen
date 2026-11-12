@@ -8,6 +8,7 @@ import { type SceneAudioClip, synthesizeSceneNarration } from "../audio/ttsEngin
 import { detectLocalBrowserPath } from "../cli/commands.js";
 import { ConfigurationError } from "../core/errors.js";
 import type { Logger } from "../core/logger.js";
+import { enrichStoryboardWithChoreography } from "../director/choreographer.js";
 import { generateStoryboard } from "../director/storyboardGenerator.js";
 import { type AspectRatio, type Storyboard, StoryboardSchema } from "../director/storyboardSchema.js";
 import { buildRoutedCandidates, loadKeyStore } from "../providers/keyStore.js";
@@ -138,6 +139,12 @@ async function loadOrCreateStoryboard(
     router,
     logger: options.logger,
   });
-  await writeFile(storyboardPath, `${JSON.stringify(generated.storyboard, null, 2)}\n`, "utf-8");
-  return generated;
+  const choreographed = await enrichStoryboardWithChoreography({
+    storyboard: generated.storyboard,
+    router,
+    preferredProviderId: options.preferredProviderId,
+    logger: options.logger,
+  });
+  await writeFile(storyboardPath, `${JSON.stringify(choreographed, null, 2)}\n`, "utf-8");
+  return { ...generated, storyboard: choreographed };
 }

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { Logger, writeCliOutput } from "../core/logger.js";
 import { generateStoryboard } from "../director/storyboardGenerator.js";
 import { type AspectRatio, calculateWordsPerSecond } from "../director/storyboardSchema.js";
+import { runCreateVideoPipeline } from "../pipeline/createVideoPipeline.js";
 import { BUILT_IN_PROVIDERS } from "../providers/catalog.js";
 import { executeCandidateCompletion } from "../providers/clients.js";
 import {
@@ -169,6 +170,37 @@ export async function runPlanCommand(options: {
     );
   }
   writeCliOutput(`Saved to ${outPath}`);
+}
+
+/** Generate a complete MP4 video from a user prompt. */
+export async function runCreateCommand(options: {
+  prompt: string;
+  aspectRatio: AspectRatio;
+  quality: "draft" | "hq";
+  style?: string;
+  provider?: string;
+  voice?: string;
+  outDir?: string;
+}): Promise<void> {
+  const logger = new Logger();
+  const result = await runCreateVideoPipeline({
+    prompt: options.prompt,
+    aspectRatio: options.aspectRatio,
+    quality: options.quality,
+    style: options.style,
+    preferredProviderId: options.provider,
+    voiceName: options.voice,
+    jobDir: options.outDir,
+    logger,
+  });
+
+  writeCliOutput(`Rendered MP4 via ${result.providerId}/${result.modelId}`);
+  writeCliOutput(
+    `  Video   : ${result.report.width}x${result.report.height} | ${result.report.durationSec}s | frames=${result.report.frameCount} | audio=${result.report.hasAudio}`,
+  );
+  writeCliOutput(`  MP4     : ${result.mp4Path}`);
+  writeCliOutput(`  Captions: ${result.srtPath}`);
+  writeCliOutput(`  Frames  : ${result.keyframePaths.length} keyframes saved`);
 }
 
 /** Locate installed Chrome or Edge executable on Windows/macOS/Linux. */

@@ -111,17 +111,28 @@ function mapSceneWordsToGlobal(
   });
 }
 
-/** Format grouped SRT subtitle file from global word captions (chunks of up to 6 words). */
+/** Format grouped SRT subtitle file from global word captions (scoped per scene, <= 6 words). */
 export function buildSrtCaptions(captions: ReadonlyArray<GlobalWordCaption>): string {
   if (captions.length === 0) {
     return "";
   }
   const chunks: GlobalWordCaption[][] = [];
-  for (let i = 0; i < captions.length; i += 6) {
-    const slice = captions.slice(i, i + 6);
-    if (slice.length > 0) {
-      chunks.push(slice);
+  let activeGroup: GlobalWordCaption[] = [];
+
+  for (const item of captions) {
+    const prev = activeGroup[activeGroup.length - 1];
+    const sceneChanged = prev !== undefined && prev.sceneId !== item.sceneId;
+    if (sceneChanged || activeGroup.length >= 6) {
+      if (activeGroup.length > 0) {
+        chunks.push(activeGroup);
+      }
+      activeGroup = [item];
+    } else {
+      activeGroup.push(item);
     }
+  }
+  if (activeGroup.length > 0) {
+    chunks.push(activeGroup);
   }
 
   return chunks

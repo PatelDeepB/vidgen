@@ -7,6 +7,7 @@ import { chromium } from "playwright-core";
 import type { AudioLockedTimeline } from "../audio/timelineSync.js";
 import { ConfigurationError } from "../core/errors.js";
 import type { Logger } from "../core/logger.js";
+import { auditAndHealTimelineDom, type SceneDomAudit } from "../qa/domAuditor.js";
 import { buildTimelineHtml, resolveViewportDimensions } from "./htmlBuilder.js";
 import { buildVirtualClockInitScript } from "./virtualClock.js";
 
@@ -29,6 +30,7 @@ export interface RenderedMediaReport {
   readonly durationSec: number;
   readonly hasAudio: boolean;
   readonly frameCount: number;
+  readonly domAudits: ReadonlyArray<SceneDomAudit>;
 }
 
 /** Render a timeline HTML document frame-by-frame via Playwright directly into FFmpeg. */
@@ -49,6 +51,7 @@ export async function exportTimelineToMp4(
     args: ["--no-sandbox", "--disable-gpu-sandbox"],
   });
 
+  let domAudits: SceneDomAudit[] = [];
   try {
     const context = await browser.newContext({ viewport: dimensions, deviceScaleFactor: 1 });
     await context.addInitScript(buildVirtualClockInitScript());
@@ -65,6 +68,15 @@ export async function exportTimelineToMp4(
     await page.goto(fileUrl, { waitUntil: "load" });
     await page.evaluate(() => document.fonts.ready);
 
+    const auditResult = await auditAndHealTimelineDom({
+      page,
+      timeline: options.timeline,
+      dimensions,
+      htmlPath: options.htmlPath,
+      logger: options.logger,
+    });
+    domAudits = auditResult.audits;
+
     await pipeFramesToFfmpeg({
       page,
       fps,
@@ -76,7 +88,7 @@ export async function exportTimelineToMp4(
     await browser.close();
   }
 
-  return probeRenderedMp4(options.outMp4Path);
+  return { ...probeRenderedMp4(options.outMp4Path), domAudits };
 }
 
 /** Step Virtual Clock frame-by-frame and pipe PNG buffers straight into FFmpeg stdin. */
@@ -180,7 +192,9 @@ export async function extractKeyframesFromMp4(options: {
 }
 
 /** Inspect rendered MP4 dimensions, duration, frame count, and audio stream via ffprobe. */
-export function probeRenderedMp4(mp4Path: string): RenderedMediaReport {
+export function probeRenderedMp4(
+  mp4Path: string,
+): Omit<RenderedMediaReport, "domAudits"> {
   const probe = spawnSync(
     "ffprobe",
     ["-v", "error", "-show_streams", "-show_format", "-of", "json", mp4Path],

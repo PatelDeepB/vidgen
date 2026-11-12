@@ -29,9 +29,16 @@ export const ThemeTokensSchema = z.object({
 });
 export type ThemeTokens = z.infer<typeof ThemeTokensSchema>;
 
+export const LayoutModeSchema = z.enum(["centered", "split"]);
+export type LayoutMode = z.infer<typeof LayoutModeSchema>;
+
+export const CursorTargetSchema = z.enum(["none", "metric", "code", "step", "cta", "visual"]);
+export type CursorTarget = z.infer<typeof CursorTargetSchema>;
+
 export const SceneSpecSchema = z.object({
   id: z.string().min(1).max(40),
   archetype: SceneArchetypeSchema,
+  layoutMode: LayoutModeSchema.optional(),
   eyebrow: z.string().max(40).optional(),
   headline: z.string().min(2).max(72),
   displayText: z.string().min(2).max(180),
@@ -40,8 +47,12 @@ export const SceneSpecSchema = z.object({
   metricLabel: z.string().max(48).optional(),
   codeSnippet: z.string().max(320).optional(),
   steps: z.array(z.string().max(48)).max(4).optional(),
+  ctaLabel: z.string().max(36).optional(),
   brollQuery: z.string().max(64).optional(),
+  brollImageUrl: z.string().optional(),
   customSvgHint: z.string().max(180).optional(),
+  customSvg: z.string().max(4500).optional(),
+  cursorTarget: CursorTargetSchema.default("none"),
   sfxCue: SfxCueSchema.default("whoosh"),
   exitVector: ExitVectorSchema.default("left"),
   estimatedDurationSec: z.number().min(2).max(16).default(4.5),

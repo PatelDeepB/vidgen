@@ -18,6 +18,12 @@ describe("sanitizer", () => {
     assert.deepEqual(parsed, { ok: true, count: 3 });
   });
 
+  it("should strip null optional properties emitted by LLMs before Zod validation", () => {
+    const schema = z.object({ title: z.string(), subtitle: z.string().optional() });
+    const parsed = parseAndValidateJson('{"title":"Async TS","subtitle":null}', schema);
+    assert.deepEqual(parsed, { title: "Async TS" });
+  });
+
   it("should throw ValidationError when schema mismatches", () => {
     const schema = z.object({ ok: z.boolean() });
     assert.throws(() => parseAndValidateJson('{"ok": "yes"}', schema), ValidationError);

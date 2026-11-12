@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { redactSecrets } from "../core/logger.js";
 import { AspectRatioSchema } from "../director/storyboardSchema.js";
 import {
+  runCreateCommand,
   runDoctorCommand,
   runKeysAddBuiltInCommand,
   runKeysAddCustomCommand,
@@ -29,6 +30,7 @@ function buildProgram(): Command {
 
   registerKeysCommands(program);
   registerPlanCommand(program);
+  registerCreateCommand(program);
   return program;
 }
 
@@ -98,6 +100,44 @@ function registerPlanCommand(program: Command): void {
         outDir: opts.outDir,
       });
     });
+}
+
+/** Register `vidgen create` command to produce a full rendered MP4 video. */
+function registerCreateCommand(program: Command): void {
+  program
+    .command("create <prompt>")
+    .description("Generate a complete MP4 video with narration, SFX, and captions from a prompt")
+    .option("--aspect <ratio>", "Aspect ratio (16:9, 9:16, 1:1)", "16:9")
+    .option("--quality <tier>", "Render quality (draft or hq)", "draft")
+    .option("--style <preset>", "Optional creative style hint")
+    .option("--provider <providerId>", "Preferred provider identifier (e.g., nvidia, gemini)")
+    .option("--voice <voiceName>", "Edge TTS voice short name")
+    .option("--out-dir <path>", "Output job directory")
+    .action(
+      async (
+        prompt: string,
+        opts: {
+          aspect: string;
+          quality: string;
+          style?: string;
+          provider?: string;
+          voice?: string;
+          outDir?: string;
+        },
+      ) => {
+        const aspectRatio = AspectRatioSchema.parse(opts.aspect);
+        const quality = opts.quality === "hq" ? "hq" : "draft";
+        await runCreateCommand({
+          prompt,
+          aspectRatio,
+          quality,
+          style: opts.style,
+          provider: opts.provider,
+          voice: opts.voice,
+          outDir: opts.outDir,
+        });
+      },
+    );
 }
 
 buildProgram()

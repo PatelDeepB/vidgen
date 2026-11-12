@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+jobs/
+output/
+*.mp4
+*.wav
+*.mp3
+*.srt
+.env
+.env.*
+!.env.example
+keys.json
+.vidgen/
+*.log
+.DS_Store
+Thumbs.db

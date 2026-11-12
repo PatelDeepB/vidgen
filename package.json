@@ -1,0 +1,41 @@
+{
+  "name": "vidgen",
+  "version": "0.1.0",
+  "description": "Free-API multi-provider prompt-to-video pipeline with deterministic rendering and automated quality gates",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "vidgen": "dist/cli/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "video-generation",
+    "motion-graphics",
+    "ffmpeg",
+    "playwright",
+    "llm",
+    "tts"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "jsonrepair": "^3.12.0",
+    "msedge-tts": "^2.0.4",
+    "playwright-core": "^1.52.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}

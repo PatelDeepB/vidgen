@@ -9,7 +9,7 @@ import {
   type SceneSpec,
   type Storyboard,
 } from "./storyboardSchema.js";
-import { sanitizeInlineSvg } from "./svgSanitizer.js";
+import { buildCuratedFallbackSvg, sanitizeInlineSvg } from "./svgSanitizer.js";
 
 const SceneEnrichmentSchema = z.object({
   id: z.string().min(1),
@@ -78,7 +78,11 @@ export async function enrichStoryboardWithChoreography(options: {
       if (!patch) {
         return scene;
       }
-      const cleanSvg = patch.customSvg ? sanitizeInlineSvg(patch.customSvg) : scene.customSvg;
+      const sanitized = patch.customSvg ? sanitizeInlineSvg(patch.customSvg, 3) : undefined;
+      const cleanSvg =
+        sanitized ??
+        scene.customSvg ??
+        buildCuratedFallbackSvg(options.storyboard.theme.primaryHex, options.storyboard.theme.accentHex);
       return {
         ...scene,
         layoutMode: patch.layoutMode ?? defaultLayoutForArchetype(scene.archetype),

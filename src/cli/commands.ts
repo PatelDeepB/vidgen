@@ -20,6 +20,7 @@ import {
 } from "../providers/keyStore.js";
 import { ProviderRouter } from "../providers/router.js";
 import type { CodingTier, TaskRole } from "../providers/types.js";
+import { startPreviewStudioServer } from "../studio/previewServer.js";
 
 /** Print configured built-in keys and custom providers with masked secrets. */
 export async function runKeysListCommand(): Promise<void> {
@@ -180,6 +181,8 @@ export async function runCreateCommand(options: {
   style?: string;
   provider?: string;
   voice?: string;
+  enableBroll?: boolean;
+  enableVisionQa?: boolean;
   outDir?: string;
 }): Promise<void> {
   const logger = new Logger();
@@ -190,6 +193,8 @@ export async function runCreateCommand(options: {
     style: options.style,
     preferredProviderId: options.provider,
     voiceName: options.voice,
+    enableBroll: options.enableBroll,
+    enableVisionQa: options.enableVisionQa,
     jobDir: options.outDir,
     logger,
   });
@@ -200,7 +205,18 @@ export async function runCreateCommand(options: {
   );
   writeCliOutput(`  MP4     : ${result.mp4Path}`);
   writeCliOutput(`  Captions: ${result.srtPath}`);
-  writeCliOutput(`  Frames  : ${result.keyframePaths.length} keyframes saved`);
+  writeCliOutput(`  Sheet   : ${result.contactSheetPath}`);
+  if (result.visionCritique) {
+    writeCliOutput(
+      `  VisionQA: ${result.visionCritique.overallScore}/10 (${result.visionCritique.summary})`,
+    );
+  }
+}
+
+/** Launch the local Preview Studio web server for an existing job directory. */
+export async function runPreviewCommand(jobDir: string, port?: number): Promise<void> {
+  const { url } = await startPreviewStudioServer({ jobDir, port });
+  writeCliOutput(`vidgen Studio running at ${url} (press Ctrl+C to stop)`);
 }
 
 /** Locate installed Chrome or Edge executable on Windows/macOS/Linux. */

@@ -11,8 +11,14 @@ import type { Logger } from "../core/logger.js";
 import { enrichStoryboardWithChoreography } from "../director/choreographer.js";
 import { generateStoryboard } from "../director/storyboardGenerator.js";
 import { type AspectRatio, type Storyboard, StoryboardSchema } from "../director/storyboardSchema.js";
+import { enrichStoryboardWithBroll } from "../media/brollFetcher.js";
 import { buildRoutedCandidates, loadKeyStore } from "../providers/keyStore.js";
 import { ProviderRouter } from "../providers/router.js";
+import {
+  buildKeyframeContactSheet,
+  critiqueRenderedContactSheet,
+  type VisionCritique,
+} from "../qa/visionCritic.js";
 import {
   exportTimelineToMp4,
   extractKeyframesFromMp4,
@@ -27,6 +33,8 @@ export interface CreateVideoOptions {
   readonly style?: string;
   readonly preferredProviderId?: string;
   readonly voiceName?: string;
+  readonly enableBroll?: boolean;
+  readonly enableVisionQa?: boolean;
   readonly jobDir?: string;
   readonly logger?: Logger;
 }
@@ -38,12 +46,14 @@ export interface CreateVideoResult {
   readonly mp4Path: string;
   readonly srtPath: string;
   readonly keyframePaths: ReadonlyArray<string>;
+  readonly contactSheetPath: string;
+  readonly visionCritique?: VisionCritique;
   readonly report: RenderedMediaReport;
   readonly providerId: string;
   readonly modelId: string;
 }
 
-/** Run the resumable end-to-end prompt -> storyboard -> audio-lock -> MP4 pipeline. */
+/** Run the resumable prompt -> storyboard -> B-roll -> audio-lock -> MP4 -> Vision QA pipeline. */
 export async function runCreateVideoPipeline(
   options: CreateVideoOptions,
 ): Promise<CreateVideoResult> {
@@ -57,8 +67,21 @@ export async function runCreateVideoPipeline(
   const jobDir = resolve(options.jobDir ?? join(process.cwd(), "jobs", `job-${Date.now()}`));
   await mkdir(jobDir, { recursive: true });
 
-  const { storyboard, providerId, modelId } = await loadOrCreateStoryboard(jobDir, options);
+  const store = await loadKeyStore();
+  const candidates = buildRoutedCandidates(store);
+  const router = new ProviderRouter({ candidates, logger: options.logger });
+
+  let { storyboard, providerId, modelId } = await loadOrCreateStoryboard(jobDir, router, options);
   const storyboardPath = join(jobDir, "01_storyboard.json");
+
+  if (options.enableBroll !== false) {
+    storyboard = await enrichStoryboardWithBroll({
+      storyboard,
+      mediaDir: join(jobDir, "media"),
+      logger: options.logger,
+    });
+    await writeFile(storyboardPath, `${JSON.stringify(storyboard, null, 2)}\n`, "utf-8");
+  }
 
   const audioDir = join(jobDir, "02_audio");
   const clips: SceneAudioClip[] = [];
@@ -103,21 +126,47 @@ export async function runCreateVideoPipeline(
     timestampsSec: samplePoints,
   });
 
+  const contactSheetPath = buildKeyframeContactSheet({
+    keyframePaths,
+    outContactSheetPath: join(jobDir, "contact_sheet.png"),
+  });
+
+  let visionCritique: VisionCritique | undefined;
+  if (options.enableVisionQa !== false) {
+    visionCritique = await critiqueRenderedContactSheet({
+      contactSheetPath,
+      storyboard,
+      router,
+      preferredProviderId: options.preferredProviderId,
+      logger: options.logger,
+    });
+    if (visionCritique) {
+      await writeFile(
+        join(jobDir, "04_vision_critique.json"),
+        `${JSON.stringify(visionCritique, null, 2)}\n`,
+        "utf-8",
+      );
+    }
+  }
+
   return {
     jobDir,
     storyboardPath,
     mp4Path: outMp4Path,
     srtPath,
     keyframePaths,
+    contactSheetPath,
+    visionCritique,
     report,
     providerId,
     modelId,
   };
 }
 
-/** Reuse cached storyboard checkpoint when resuming a job, otherwise invoke AI Director. */
+/** Reuse cached storyboard checkpoint when resuming a job, otherwise invoke 2-Pass AI Director. */
 async function loadOrCreateStoryboard(
   jobDir: string,
+  router: ProviderRouter,
   options: CreateVideoOptions,
 ): Promise<{ storyboard: Storyboard; providerId: string; modelId: string }> {
   const storyboardPath = join(jobDir, "01_storyboard.json");
@@ -126,10 +175,6 @@ async function loadOrCreateStoryboard(
     const parsed = StoryboardSchema.parse(JSON.parse(raw));
     return { storyboard: parsed, providerId: "cached", modelId: "cached" };
   }
-
-  const store = await loadKeyStore();
-  const candidates = buildRoutedCandidates(store);
-  const router = new ProviderRouter({ candidates, logger: options.logger });
 
   const generated = await generateStoryboard({
     prompt: options.prompt,

@@ -11,6 +11,7 @@ import {
   runKeysListCommand,
   runKeysTestCommand,
   runPlanCommand,
+  runPreviewCommand,
 } from "./commands.js";
 
 /** Build and configure the root vidgen CLI program. */
@@ -31,6 +32,7 @@ function buildProgram(): Command {
   registerKeysCommands(program);
   registerPlanCommand(program);
   registerCreateCommand(program);
+  registerPreviewCommand(program);
   return program;
 }
 
@@ -112,6 +114,8 @@ function registerCreateCommand(program: Command): void {
     .option("--style <preset>", "Optional creative style hint")
     .option("--provider <providerId>", "Preferred provider identifier (e.g., nvidia, gemini)")
     .option("--voice <voiceName>", "Edge TTS voice short name")
+    .option("--no-broll", "Disable free stock B-roll background enrichment")
+    .option("--no-vision-qa", "Disable post-render contact-sheet Vision Critic")
     .option("--out-dir <path>", "Output job directory")
     .action(
       async (
@@ -122,6 +126,8 @@ function registerCreateCommand(program: Command): void {
           style?: string;
           provider?: string;
           voice?: string;
+          broll: boolean;
+          visionQa: boolean;
           outDir?: string;
         },
       ) => {
@@ -134,10 +140,23 @@ function registerCreateCommand(program: Command): void {
           style: opts.style,
           provider: opts.provider,
           voice: opts.voice,
+          enableBroll: opts.broll,
+          enableVisionQa: opts.visionQa,
           outDir: opts.outDir,
         });
       },
     );
+}
+
+/** Register `vidgen preview` command for interactive localhost playback. */
+function registerPreviewCommand(program: Command): void {
+  program
+    .command("preview <jobDir>")
+    .description("Start localhost Studio scrubber for a rendered job directory")
+    .option("--port <number>", "Local port number", "4173")
+    .action(async (jobDir: string, opts: { port: string }) => {
+      await runPreviewCommand(jobDir, Number(opts.port));
+    });
 }
 
 buildProgram()
